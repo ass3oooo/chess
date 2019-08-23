@@ -35,6 +35,17 @@
 
     }
 
+    filterOutMapCoords(point) {
+      return (point.x > -1 && point.x < 8 && point.y > -1 && point.y < 8) ? true : false;
+    }
+
+    highlightTurns(turns) {
+      if (!turns) {
+        turns = this.getPossibleTurns().filter(this.filterOutMapCoords);
+      }
+      turns.forEach(elem => {window.highlightCell.call(this.board, elem)});
+    }
+
     render() {
 
       let screen = this.board.getCoordsOfPosition(this.position);
@@ -101,6 +112,15 @@
   class Pawn extends Piece {
     constructor(options) {
       super(options);
+      this._firstMove = true;//pawn can move up to 2 cells if this is first her turn
+    }
+
+    moveTo(position) {
+      if (this._firstMove) {
+        this._firstMove = false;
+      }
+
+      super.moveTo(position);
     }
 
     getRenderingPoints() {
@@ -139,6 +159,32 @@
         [-22, 25],
         [0, 25],
       ];
+    }
+
+    getPossibleTurns() {
+      let turns = [];
+
+      let left = this.position.x - 1;
+      let right = this.position.x + 1;
+      let forward = (this.side === "b") ? this.position.y + 1
+                                        : this.position.y - 1;
+
+
+      if (this.board.map[forward][right].side === "w") {
+        turns.push({x: right, y: forward});
+      }
+
+      if (this.board.map[forward][left].side === "w") {
+        turns.push({x: left, y: forward});
+      }
+      if (!this.board.map[forward][this.position.x]) {
+        turns.push({x: this.position.x, y: forward});
+      }
+      if (this._firstMove && !this.board.map[forward][this.position.x]) {
+        turns.push({x: this.position.x, y: (this.side === "b") ? forward + 1 : forward - 1});
+      }
+
+      return turns.filter(this.filterOutMapCoords);
     }
   }
 
@@ -185,6 +231,52 @@
         [-22, 25],
         [0, 25],
       ]
+    }
+
+    getPossibleTurns() {
+      let turns = [];
+      let obstacles = {
+        // leftUp = true || false,
+        // leftDown = true || false,
+        // rightUp = true || false,
+        // rightDown = true || false
+      };
+
+      for (let i = 1; i < 8; i++) {
+
+        let left = this.position.x - 1 * i;
+        // left = left < -1 ?
+        let right = this.position.x + 1 * i;
+        let up = this.position.y - 1 * i;
+        let down = this.position.y + 1 * i;
+
+        // if (!obstacles["rightUp"] && (this.board.map[up][right].side === "w" || !this.board.map[up][right])) {
+          // if (this.board.map[up][right].side === "w") {
+            // obstacles["rightUp"] = true;
+          // }
+          turns.push({x: right, y: up});
+        // }
+        // if (!obstacles["leftUp"] && (this.board.map[up][left].side === "w" || !this.board.map[up][left])) {
+        //   if (this.board.map[up][left].side === "w") {
+        //     obstacles["leftUp"] = true;
+        //   }
+          turns.push({x: left, y: up});
+        // }
+        // if (!obstacles["leftDown"] && (this.board.map[down][left].side === "w" || !this.board.map[down][left])) {
+          // if (this.board.map[down][left].side === "w") {
+            // obstacles["leftDown"] = true;
+          // }
+          turns.push({x: left, y: down});
+        // }
+        // if (!obstacles["rightDown"] && (this.board.map[down][right].side === "w" || !this.board.map[down][right])) {
+          // if (this.board.map[down][right].side === "w") {
+            // obstacles["rightDown"] = true;
+          // }
+          turns.push({x: right, y: down});
+        // }
+      }
+
+      return turns.filter(this.filterOutMapCoords);
     }
   }
   // end class
@@ -240,6 +332,21 @@
         [0, 25],
         // /основание
       ];
+    }
+
+    getPossibleTurns() {
+      let turns = [
+        {x: this.position.x - 2, y: this.position.y - 1},
+        {x: this.position.x - 2, y: this.position.y + 1},
+        {x: this.position.x + 2, y: this.position.y - 1},
+        {x: this.position.x + 2, y: this.position.y + 1},
+        {x: this.position.x - 1, y: this.position.y - 2},
+        {x: this.position.x + 1, y: this.position.y - 2},
+        {x: this.position.x - 1, y: this.position.y + 2},
+        {x: this.position.x + 1, y: this.position.y + 2},
+      ];
+
+      return turns.filter(this.filterOutMapCoords);
     }
   }
   // end class
@@ -310,6 +417,19 @@
         // /основание
       ];
     }
+
+    getPossibleTurns() {
+      let turns = [];
+
+      for (let i = 1; i < 8; i++) {
+        turns.push({x: this.position.x + i, y: this.position.y});
+        turns.push({x: this.position.x - i, y: this.position.y});
+        turns.push({x: this.position.x, y: this.position.y + i});
+        turns.push({x: this.position.x, y: this.position.y - i});
+      }
+
+      return turns.filter(this.filterOutMapCoords);
+    }
   }
   // end class
 
@@ -378,6 +498,23 @@
         [0, 25],
         // /основание
       ];
+    }
+
+    getPossibleTurns() {
+      let turns = [];
+
+      for (let i = 1; i < 8; i++) {
+        turns.push({x: this.position.x + i, y: this.position.y});
+        turns.push({x: this.position.x + i, y: this.position.y + i});
+        turns.push({x: this.position.x, y: this.position.y + i});
+        turns.push({x: this.position.x - i, y: this.position.y + i});
+        turns.push({x: this.position.x - i, y: this.position.y});
+        turns.push({x: this.position.x - i, y: this.position.y - i});
+        turns.push({x: this.position.x, y: this.position.y - i});
+        turns.push({x: this.position.x + i, y: this.position.y - i});
+      }
+
+      return turns.filter(this.filterOutMapCoords);
     }
   }
   // end class
@@ -466,6 +603,21 @@
         [0, 25],
         // /основание
       ];
+    }
+
+    getPossibleTurns() {
+      let turns = [
+        {x: this.position.x + 1, y: this.position.y},
+        {x: this.position.x + 1, y: this.position.y + 1},
+        {x: this.position.x, y: this.position.y + 1},
+        {x: this.position.x - 1, y: this.position.y + 1},
+        {x: this.position.x - 1, y: this.position.y},
+        {x: this.position.x - 1, y: this.position.y - 1},
+        {x: this.position.x, y: this.position.y - 1},
+        {x: this.position.x + 1, y: this.position.y - 1}
+      ];
+
+      return turns.filter(this.filterOutMapCoords);
     }
   }
   // end class

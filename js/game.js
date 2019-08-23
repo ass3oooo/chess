@@ -22,53 +22,70 @@
 
     clickHandler(position) {
       let isClickOnPiece = this.board.map[position.y][position.x];
-      let highlightedCell = false; //это так не работает. каждый раз создается новая переменная
 
-      if (isClickOnPiece) { //клик по фигуре?
-        if (this.chosed) { //есть ранее выбранная?
-          if (!(isClickOnPiece.side === "b")) {
-            let index = this.board.pieces.indexOf(isClickOnPiece);
-            this.board.pieces.splice(index, 1);
-            this.chosed.moveTo(position);
-            this.chosed = false;
-          } else {
-            this.chosed = false;
-            console.log(highlightedCell);
-            // if (highlightedCell) {
-            //   this.board.render();
-            //   highlightedCell = false;
-            //   this.board.renderPieces();
-            // }
-          }
-        } else {
-          if (isClickOnPiece.side === "b") {               //по моей фигуре?
-            console.log("a");
-            this.board.render();
-            window.highlightCell.call(this.board, isClickOnPiece.position);
-            highlightedCell = true;
-            this.board.renderPieces();
-            this.chosed = isClickOnPiece;                  //да - выбрать ее для следующего клика
-            console.log(highlightedCell);
-          } else {
-            console.log("b");
-            this.board.render();
-            window.highlightCell.call(this.board, isClickOnPiece.position);
-            highlightedCell = true;
-            this.board.renderPieces();
-          }
-        }
-      } else {
-        if (this.chosed) {
+      let answers = "";
+
+      let functions = {
+        "10": function() { //prev click on enemy piece or on empty cell or no prev click, this on our piece => choose this piece
+          this.chosed = isClickOnPiece;
+
+          this.board.render();
+          window.highlightCell.call(this.board, this.chosed.position);
+          isClickOnPiece.highlightTurns();
+          this.board.renderPieces();
+        },
+        "8": function() { //prev click on empty piece or no prev click, this on our piece => choose this piece
+          this.chosed = false;
+
+          this.board.render();
+          window.highlightCell.call(this.board, isClickOnPiece.position);
+          isClickOnPiece.highlightTurns();
+          this.board.renderPieces();
+        },
+        "12": function() { //prev click on our piece, this on enemy piece => make turn, remove enemy piece
+
+          let index = this.board.pieces.indexOf(isClickOnPiece);
+          this.board.pieces.splice(index, 1);
+
+          this.chosed.moveTo(isClickOnPiece.position);
+          this.chosed = false;
+        },
+        "4": function() { //prev click on our piece, this click on empty cell => make turn
           this.chosed.moveTo(position);
           this.chosed = false;
-        }
-        if (highlightedCell) {
+        },
+        "1": function() { //prev click on empty cell or on enemy piece, this click on empry cell => rerender map
           this.board.render();
           this.board.renderPieces();
-          highlightedCell = false;
+        },
+        "14": function() { //prev click on our piece, this click on our piece => choose this piece, then highlight
+          this.chosed = isClickOnPiece;
+
+          this.board.render();
+          window.highlightCell.call(this.board, this.chosed.position);
+          isClickOnPiece.highlightTurns();
+          this.board.renderPieces();
+        },
+        "15": function() { //prev click and this click on this our piece => unchoose this piece
+          this.chosed = false;
+
+          this.board.render();
+          this.board.renderPieces();
         }
       }
 
+      answers += (isClickOnPiece) ? "1" : "0";
+      answers += (this.chosed) ? "1" : "0";
+      answers += (isClickOnPiece.side === "b") ? "1" : "0";
+      answers += (isClickOnPiece === this.chosed) ? "1" : "0";
+
+      //after answer the questions, the "answers" variable becomes a string like binary number "1001",
+      //convert them to decimal - and that will be unique value, describes unique state,
+      //depending on which we use the corresponding function in functions[answer]
+
+      let answer = parseInt(answers, 2);
+
+      functions[answer].call(this);
     }
   }
 
