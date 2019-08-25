@@ -2,17 +2,28 @@
 
 (function() {
   const BLACK = "b";
+  window.BLACK = BLACK;
   const WHITE = "w";
+  window.WHITE = WHITE;
 
   class Game {
     constructor() {
-      this.board = new ChessBoard();
+      this.board = new ChessBoard({game: this});
 
       generateOptions.call(this).forEach(option => {
         this.board.addPiece(option);
       });
 
-      this.state = {};
+      this.state = {
+        _turn: WHITE,
+        switchTurn: function() {
+          this._turn = this._turn === WHITE ? BLACK : WHITE;
+        },
+        getTurn: function() {
+          return this._turn;
+        }
+      };
+      this.setKeyboardPositionToKing();
 
       this.board.updateMap();
       this.board.render();
@@ -44,15 +55,26 @@
         },
         "12": function() { //prev click on our piece, this on enemy piece => make turn, remove enemy piece
 
-          let index = this.board.pieces.indexOf(isClickOnPiece);
-          this.board.pieces.splice(index, 1);
+          if (this.chosed.isPossibleMove(position)) {
+            let index = this.board.pieces.indexOf(isClickOnPiece);
+            this.board.pieces.splice(index, 1);
 
-          this.chosed.moveTo(isClickOnPiece.position);
+            this.chosed.moveTo(isClickOnPiece.position);
+          } else {
+            this.board.render();
+            this.board.renderPieces();
+          }
           this.chosed = false;
         },
         "4": function() { //prev click on our piece, this click on empty cell => make turn
-          this.chosed.moveTo(position);
+          if (this.chosed.isPossibleMove(position)) {
+            this.chosed.moveTo(position);
+          } else {
+            this.board.render();
+            this.board.renderPieces();
+          }
           this.chosed = false;
+
         },
         "1": function() { //prev click on empty cell or on enemy piece, this click on empry cell => rerender map
           this.board.render();
@@ -76,7 +98,7 @@
 
       answers += (isClickOnPiece) ? "1" : "0";
       answers += (this.chosed) ? "1" : "0";
-      answers += (isClickOnPiece.side === "b") ? "1" : "0";
+      answers += (isClickOnPiece.side === game.state.getTurn()) ? "1" : "0";
       answers += (isClickOnPiece === this.chosed) ? "1" : "0";
 
       //after answer the questions, the "answers" variable becomes a string like binary number "1001",
@@ -86,6 +108,58 @@
       let answer = parseInt(answers, 2);
 
       functions[answer].call(this);
+    }
+
+    setKeyboardPositionToKing() {
+      let turn = this.state.getTurn();
+      let king = this.board.pieces.filter(elem => {
+        return (elem.type === "king") && (elem.side === turn)
+      })[0];
+
+      this.keyboardPosition = {
+        x: king.position.x,
+        y: king.position.y
+      };
+    }
+
+    keyboardHandler(action) {
+
+      let actions = {
+        "left": function() {
+
+        },
+        "right": function() {
+
+        },
+        "up": function() {
+
+        },
+        "down": function() {
+
+        },
+        "downLeft": function() {
+
+        },
+        "downRight": function() {
+
+        },
+        "upLeft": function() {
+
+        },
+        "upRight": function() {
+
+        },
+        "accept": function() {
+
+        },
+        "cancel": function() {
+
+        }
+      }
+
+      if (actions[action]) {
+        actions[action].call(this);
+      }
     }
   }
 

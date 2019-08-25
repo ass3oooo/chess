@@ -9,5 +9,6 @@
   window.colors.pieceBlackOutline = "#ffffff";
   window.colors.pieceWhiteFill = "#ffffff";
   window.colors.pieceWhiteOutline = "#000000";
+  window.colors.keyboardPointer = "#48868a";
 
 })();

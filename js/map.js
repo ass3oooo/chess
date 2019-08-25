@@ -1,13 +1,14 @@
 "use strict";
 
 class ChessBoard {
-  constructor() {
+  constructor(options) {
     this._side = 640;
     this._cells = 8;
     this._cellwidth = this._side / this._cells;
 
     this.pieces = [];
     this.map = [];
+    this.game = options.game;
   }
 
   addPiece(options) {

@@ -91,6 +91,38 @@
     }
   }
 
+  function highlightKeyboardPointer(position) {
+    ctx.fillStyle = window.colors.keyboardPointer;
+
+    let cellwidth = this._cellwidth;
+    let x = position.x * cellwidth;
+    let y = position.y * cellwidth;
+    let outlineWidth = cellwidth / 20;
+
+    for (let i = 1; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + cellwidth, y);
+      ctx.lineTo(x + cellwidth, y + outlineWidth);
+      ctx.lineTo(x, y + outlineWidth);
+      ctx.lineTo(x, y);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.lineTo(x, y + cellwidth);
+      ctx.lineTo(x + outlineWidth, y + cellwidth);
+      ctx.lineTo(x + outlineWidth, y);
+      ctx.lineTo(x, y);
+      ctx.fill();
+
+      x = x + cellwidth;
+      y = y + cellwidth;
+      cellwidth = -cellwidth;
+      outlineWidth = -outlineWidth;
+    }
+  }
+
   window.renderByPoints = renderByPoints;
   window.highlightCell = highlightCell;
+  window.highlightKeyboardPointer = highlightKeyboardPointer;
 })();
