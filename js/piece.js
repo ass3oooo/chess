@@ -50,8 +50,9 @@
     highlightTurns(turns) {
       if (!turns) {
         turns = this.getPossibleTurns();
+        this._cachedPossibleTurns = turns;
       }
-      turns.forEach(elem => {window.highlightCell.call(this.board, elem)});
+      turns.forEach(elem => {this.board.map[elem.y][elem.x].set("isHighlighted", true, true)});
     }
 
     render() {
@@ -69,61 +70,48 @@
       window.renderByPoints(parameters);
     }
 
-    moveTo() {
+    moveTo(position) {
       //Корректировка (приведение) к правильной позиции
-      let position = {};
-
-      if (arguments[0]["x"] + 1 && arguments[0]["x"] + 1) {
-
-        position.x = parseInt(arguments[0]["x"]);
-        position.y = parseInt(arguments[0]["y"]);
-
-      } else if (arguments[0] + 1 && arguments[1] + 1) {
-
-        position.x = parseInt(arguments[0]);
-        position.y = parseInt(arguments[1]);
-
-      } else if (arguments.x + 1 && arguments.y + 1) {
-
-        position.x = parseInt(arguments.x);
-        position.y = parseInt(arguments.y);
-
-      }
-
-      if (isNaN(position.x) || isNaN(position.y)) {
-        console.log("can not parse position. use ({x: 'x', y: 'y'}) or (['x', 'y']) or ('x', 'y')");
-        console.log("Переданные в функцию параметры: ", arguments);
-        console.log("Преобразованные параметры: ", position);
+      // let position = this.board.game.parseCoords(...[].slice.call(arguments));
+      if (!position) {
         return false;
       }
-
-
-      //проверка допустимости позиции
-      if (position.x >= 8 || position.x < 0 || position.y >= 8 || position.y < 0) {
-        console.log("Недопустимая позиция для перемещения: за пределами карты.");
-        console.log("Переданные в функцию параметры: ", arguments);
-        console.log("Преобразованные параметры: ", position);
-        return false;
-      }
+      let map = this.board.map;
+      let pieces = this.board.pieces;
 
       let isPossible = this.isPossibleMove(position);
-      let force = false;
-      [].forEach.call(arguments, elem => {
-        if (elem === "force") {
-          force = true;
-        }
-      });
+      let force = position.force;
 
       if (force) isPossible = true;
 
       if (isPossible) {
-        this.board.updateMapSingle(this, position);
-        this.position = position;
-        this.board.render();
-        this.board.renderPieces();
-        // this._cachedPossibleTurns = false;
+        //Стираем по старой позиции эту фигуру
+        map[this.position.y][this.position.x].set("piece", false);
+
+        let index = pieces.indexOf(map[position.y][position.x].piece);
+        console.log(index);
+        if (index > -1) {
+          pieces.splice(index, 1);
+        }
+        //На карте по новой позиции устанавливаем эту фигуру, перезаписывая ту, что там была
+        map[position.y][position.x].set("piece", this);
+        //Если ходит пешка и ход - "взятие на проходе" - удаляем вражескую пешку по правилам
+        if (isPossible.enPassant) {
+          let index = pieces.indexOf(map[position.y][position.x].piece);
+          if (index > -1) {
+            pieces.splice(index, 1);
+          }
+          map[this.position.y][position.x].set("piece", false);
+        }
+        //И тут же этой фигуре устанавливаем позицию в ее свойствах
+        this.position = {x: position.x, y: position.y};
+        //Перерисовываем клетки, которые требуется перерисовать
+        this.board.renderRequiredCells();
+        //Сбрасываем закешированные возможные ходы для всех фигур
         this.clearCachedTurns();
-        this.board.game.state.switchTurn();
+        //Передаем ход другому игроку
+        this.board.game.switchTurn();
+
         return true;
       } else {
         console.log("can not move to this point");
@@ -132,6 +120,7 @@
     }
 
     isPossibleMove(position) {
+      console.log("calling piece.isPossibleMove()");
       if (!this._cachedPossibleTurns) {
         this._cachedPossibleTurns = this.getPossibleTurns();
       }
@@ -141,6 +130,9 @@
         if (this._cachedPossibleTurns[i].x === position.x
             && this._cachedPossibleTurns[i].y === position.y) {
               isPossible = true;
+              if (this._cachedPossibleTurns[i].enPassant) {
+                isPossible = {enPassant: true};
+              }
               break;
             }
       }
@@ -158,12 +150,17 @@
   class Pawn extends Piece {
     constructor(options) {
       super(options);
-      this._firstMove = true;//pawn can move up to 2 cells if this is first her turn
+      this._firstMove = 2;//pawn can move up to 2 cells if this is first turn
     }
 
     moveTo(position) {
+      console.log(position);
       if (this._firstMove) {
-        this._firstMove = false;
+        if (Math.abs(this.position.y - position.y) === 2) {
+          this._firstMove--;
+        } else {
+          this._firstMove = false;
+        }
       }
 
       super.moveTo(position);
@@ -217,17 +214,28 @@
 
       isExist = isExist.bind(this);
 
-      if (isExist(forward, right) && this.board.map[forward][right].side === this.enemy) {
+      if (isExist(forward, right) && this.board.map[forward][right].piece.side === this.enemy) {
         turns.push({x: right, y: forward});
       }
 
-      if (isExist(forward, left) && this.board.map[forward][left].side === this.enemy) {
+      if (isExist(forward, left) && this.board.map[forward][left].piece.side === this.enemy) {
         turns.push({x: left, y: forward});
       }
-      if (this.board.map[forward] && !this.board.map[forward][this.position.x]) {
+
+      //enPassantMove
+      if (isExist(this.position.y, left) && this.board.map[this.position.y][left].piece._firstMove === 1
+          && this.board.map[forward]) {
+        turns.push({y: forward, x: left, enPassant: true});
+      }
+      if (isExist(this.position.y, right) && this.board.map[this.position.y][right].piece._firstMove === 1
+          && this.board.map[forward]) {
+        turns.push({y: forward, x: right, enPassant: true});
+      }
+
+      if (this.board.map[forward] && this.board.map[forward][this.position.x].isEmpty()) {
         turns.push({x: this.position.x, y: forward});
       }
-      if (this._firstMove && !this.board.map[forward][this.position.x]) {
+      if (this._firstMove && this.board.map[forward][this.position.x].isEmpty()) {
         turns.push({x: this.position.x, y: (this.side === window.BLACK) ? forward + 1 : forward - 1});
       }
 
@@ -307,8 +315,8 @@
           break;
         }
         let nextCell = this.board.map[y1][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["leftTop"] = true;
           }
           turns.push({x: x1, y: y1});
@@ -323,8 +331,8 @@
           break;
         }
         let nextCell = this.board.map[y1][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["leftBottom"] = true;
           }
           turns.push({x: x1, y: y1});
@@ -339,8 +347,8 @@
           break;
         }
         let nextCell = this.board.map[y1][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["rightTop"] = true;
           }
           turns.push({x: x1, y: y1});
@@ -355,8 +363,8 @@
           break;
         }
         let nextCell = this.board.map[y1][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["rightBottom"] = true;
           }
           turns.push({x: x1, y: y1});
@@ -437,7 +445,7 @@
 
       return turns.filter(elem => {
         if (elem.x < 8 && elem.x > -1 && elem.y < 8 && elem.y > -1
-            && this.board.map[elem.y][elem.x].side !== this.side) {
+            && this.board.map[elem.y][elem.x].piece.side !== this.side) {
               return true;
         } else {
           return false;
@@ -530,8 +538,8 @@
         let x1 = x - i;
         if (x1 < 0) break;
         let nextCell = this.board.map[y][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["left"] = true;
           }
           turns.push({x: x1, y: y});
@@ -543,8 +551,8 @@
         let x1 = x + i;
         if (x1 > 7) break;
         let nextCell = this.board.map[y][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["right"] = true;
           }
           turns.push({x: x1, y: y});
@@ -556,8 +564,8 @@
         let y1 = y - i;
         if (y1 < 0) break;
         let nextCell = this.board.map[y1][x];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["top"] = true;
           }
           turns.push({x: x, y: y1});
@@ -569,8 +577,8 @@
         let y1 = y + i;
         if (y1 > 7) break;
         let nextCell = this.board.map[y1][x];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["bottom"] = true;
           }
           turns.push({x: x, y: y1});
@@ -671,8 +679,8 @@
         let x1 = x - i;
         if (x1 < 0) break;
         let nextCell = this.board.map[y][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["left"] = true;
           }
           turns.push({x: x1, y: y});
@@ -684,8 +692,8 @@
         let x1 = x + i;
         if (x1 > 7) break;
         let nextCell = this.board.map[y][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["right"] = true;
           }
           turns.push({x: x1, y: y});
@@ -697,8 +705,8 @@
         let y1 = y - i;
         if (y1 < 0) break;
         let nextCell = this.board.map[y1][x];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["top"] = true;
           }
           turns.push({x: x, y: y1});
@@ -710,8 +718,8 @@
         let y1 = y + i;
         if (y1 > 7) break;
         let nextCell = this.board.map[y1][x];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["bottom"] = true;
           }
           turns.push({x: x, y: y1});
@@ -726,8 +734,8 @@
           break;
         }
         let nextCell = this.board.map[y1][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["leftTop"] = true;
           }
           turns.push({x: x1, y: y1});
@@ -742,8 +750,8 @@
           break;
         }
         let nextCell = this.board.map[y1][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["leftBottom"] = true;
           }
           turns.push({x: x1, y: y1});
@@ -758,8 +766,8 @@
           break;
         }
         let nextCell = this.board.map[y1][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["rightTop"] = true;
           }
           turns.push({x: x1, y: y1});
@@ -774,8 +782,8 @@
           break;
         }
         let nextCell = this.board.map[y1][x1];
-        if (!nextCell || nextCell.side === this.enemy) {
-          if (nextCell.side === this.enemy) {
+        if (nextCell.isEmpty() || nextCell.piece.side === this.enemy) {
+          if (nextCell.piece.side === this.enemy) {
             obstacles["rightBottom"] = true;
           }
           turns.push({x: x1, y: y1});
@@ -887,7 +895,7 @@
         let x1 = x + 1;
         if (x1 < 8) {
           let nextCell = this.board.map[y][x1];
-          if (nextCell.side !== this.side) {
+          if (nextCell.piece.side !== this.side) {
             turns.push({x: x1, y: y})
           }
         }
@@ -896,7 +904,7 @@
         let x1 = x - 1;
         if (x1 > -1) {
           let nextCell = this.board.map[y][x1];
-          if (nextCell.side !== this.side) {
+          if (nextCell.piece.side !== this.side) {
             turns.push({x: x1, y: y})
           }
         }
@@ -905,7 +913,7 @@
         let y1 = y - 1;
         if (y1 > -1) {
           let nextCell = this.board.map[y1][x];
-          if (nextCell.side !== this.side) {
+          if (nextCell.piece.side !== this.side) {
             turns.push({x: x, y: y1})
           }
         }
@@ -914,7 +922,7 @@
         let y1 = y + 1;
         if (y1 < 8) {
           let nextCell = this.board.map[y1][x];
-          if (nextCell.side !== this.side) {
+          if (nextCell.piece.side !== this.side) {
             turns.push({x: x, y: y1})
           }
         }
@@ -924,7 +932,7 @@
         let x1 = x + 1;
         if (y1 < 8 && x1 < 8) {
           let nextCell = this.board.map[y1][x1];
-          if (nextCell.side !== this.side) {
+          if (nextCell.piece.side !== this.side) {
             turns.push({x: x1, y: y1})
           }
         }
@@ -934,7 +942,7 @@
         let x1 = x - 1;
         if (y1 < 8 && x1 > -1) {
           let nextCell = this.board.map[y1][x1];
-          if (nextCell.side !== this.side) {
+          if (nextCell.piece.side !== this.side) {
             turns.push({x: x1, y: y1})
           }
         }
@@ -944,7 +952,7 @@
         let x1 = x - 1;
         if (y1 > -1 && x1 > -1) {
           let nextCell = this.board.map[y1][x1];
-          if (nextCell.side !== this.side) {
+          if (nextCell.piece.side !== this.side) {
             turns.push({x: x1, y: y1})
           }
         }
@@ -954,14 +962,40 @@
         let x1 = x + 1;
         if (y1 > -1 && x1 < 8) {
           let nextCell = this.board.map[y1][x1];
-          if (nextCell.side !== this.side) {
+          if (nextCell.piece.side !== this.side) {
             turns.push({x: x1, y: y1})
           }
         }
       }
 
+      let enemyKing = (this.board.pieces[0].side === this.enemy)
+                      ? this.board.pieces[0]
+                      : this.board.pieces[1];
 
-      return turns;
+      let enemyX = enemyKing.position.x;
+      let enemyY = enemyKing.position.y;
+      let enemyKingField = [
+        [enemyX, enemyY],
+        [enemyX - 1, enemyY],
+        [enemyX + 1, enemyY],
+        [enemyX, enemyY - 1],
+        [enemyX, enemyY + 1],
+        [enemyX + 1, enemyY + 1],
+        [enemyX - 1, enemyY + 1],
+        [enemyX + 1, enemyY - 1],
+        [enemyX - 1, enemyY - 1],
+      ];
+
+      return turns.filter(elem => { //filters turns which is in range 1 cell from enemy king
+        let result = true;          // in chesses this turn impossible
+        for (let i = 0; i < enemyKingField.length; i++) {
+          if (elem.x === enemyKingField[i][0] && elem.y === enemyKingField[i][1]) {
+            result = false;
+            break;
+          }
+        }
+        return result;
+      });
     }
   }
   // end class

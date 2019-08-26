@@ -4,7 +4,7 @@
   if (!window.colors) window.colors = {};
 
   window.colors.mapBlackCell = "#000000";
-  window.colors.mapWhiteCell = "#ffffff";
+  window.colors.mapWhiteCell = "#80500d";
   window.colors.pieceBlackFill = "#363636";
   window.colors.pieceBlackOutline = "#ffffff";
   window.colors.pieceWhiteFill = "#ffffff";
