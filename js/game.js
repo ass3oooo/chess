@@ -16,10 +16,12 @@
 
     makeTurn() {
       let bestVariant = this.rateTurns();
+      // console.log(bestVariant);
       let map = this.game.board.map;
       let cellToMove = map[bestVariant.turn.y][bestVariant.turn.x];
       let position = bestVariant.turn;
       let piece = bestVariant.piece;
+      piece.getPossibleTurns();
 
       this.from = {
         x: piece.position.x,
@@ -34,110 +36,157 @@
     }
 
     rateTurns() {
-      let pieces = this.game.board.findPiece(piece => {
-        return (piece.side === this.game.state._turn);
+      let game = this.game;
+      let board = game.board;
+      let map = board.map;
+
+      let mainReport = [];
+
+      let pieces1 = board.findPiece(elem => {
+        return (elem.side === game.state._turn);
       });
 
-      let bestVariants = [];
+      pieces1.forEach(piece1 => {
+        let turns1 = piece1.getPossibleTurns(false);
+        let nowIsUnderAttack = piece1.getCell().isUnderAttack({noCache: true, side: piece1.enemy});
+        let base = 0;
+        let baseDesc = "";
 
-      let bestRating;
+        if (nowIsUnderAttack) {
+          base = piece1._cost;
+          baseDesc += "находится под ударом";
+          // console.log(`${piece1.side} ${piece1.type} (${piece1.position.x} ${piece1.position.y}) стоя на месте, подвергается атаке со стороны `, nowIsUnderAttack);
+          // console.log(piece1);
+          let isUnderProtection = piece1.getCell().isUnderAttack({noCache: true, side: piece1.side});
+          if (isUnderProtection) {
+            // console.log("находится под защитой ", isUnderProtection);
+          }
+        }
+        turns1.forEach(turn1 => {
+          let cellToMove = map[turn1.y][turn1.x];
+          let savedTarget = cellToMove.piece;
+          let savedThis = piece1;
+
+          let rating = base;
+          let description = `${piece1.side} ${piece1.type} (${piece1.position.x} ${piece1.position.y}) => (${turn1.x} ${turn1.y}): `;
+
+          let targetAttacksAlly = false;
+
+          if (savedTarget) {
+            let targetTurns = savedTarget.getPossibleTurns(false);
+            let targetAttacks = targetTurns.filter(turn => {
+              return (map[turn.y][turn.x].piece === piece1.side);
+            });
+            if (targetAttacks && targetAttacks.length > 0) {
+              targetAttacksAlly = targetAttacks;
+            }
+          }
+
+          piece1.getCell().set("piece", false);
+          cellToMove.set("piece", savedThis);
+
+          let isUnderAttack = cellToMove.isUnderAttack({noCache: true, side: piece1.enemy});
+          let isUnderProtection = cellToMove.isUnderAttack({noCache: true, side: piece1.side});
+
+          if (isUnderAttack) {
+            let cost = -piece1._cost;
+            rating += cost;
+            description += `будет под атакой(${cost}) `;
+
+            if (isUnderProtection) {
+              let cost = isUnderAttack.reduce((acc, elem) => {
+                if (elem._cost < Infinity) {
+                  return elem._cost;
+                }
+              }, Infinity);
+              let allyCost = isUnderProtection.reduce((acc, elem) => {
+                if (elem._cost < Infinity) {
+                  return elem._cost;
+                }
+              }, Infinity);
+              // console.log(cost);
+              // console.log(allyCost);
+              if (cost > allyCost) {
+                rating += cost;
+                description += `будет под защитой(${cost}) `;
+              }
+            }
+          }
+
+          if (targetAttacksAlly) {
+            let allyCost = targetAttacksAlly.reduce((acc, elem) => {
+              if (elem._cost < Infinity) {
+                return elem._cost;
+              } else {
+                return 0;
+              }
+            }, Infinity);
+            let cost = allyCost - piece1._cost;
+            rating += cost;
+            description += `уничтожит врага, который мог атаковать союзника(${cost}) `;
+          }
+
+          if (savedTarget && savedTarget.side === savedThis.enemy) {
+            let cost = savedTarget._cost;
+            rating += cost;
+            description += `уничтожит врага(${cost}) `;
+          }
+
+          let nextTurns = cellToMove.piece.getPossibleTurns(false);
+          // console.log(cellToMove, cellToMove.piece, cellToMove.piece.getPossibleTurns());
+          // console.log("nextTurns", nextTurns, cellToMove, cellToMove.piece);
+          // debugger;
+          let nextTargets = nextTurns.filter(turn => {
+            let nextTarget = map[turn.y][turn.x].piece;
+            // console.log(nextTarget);
+            if (nextTarget && nextTarget.side === piece1.enemy) {
+              return true;
+            } else {
+              return false;
+            }
+          });
+          // console.log("nextTargets: ", nextTargets);
+
+          if (nextTargets.length > 0 && nextTargets[0] !== undefined) {
+            // console.log(nextTargets);
+            nextTargets.forEach(nextTarget => {
+              if (nextTarget && nextTarget.position) {
+                let piece = map[nextTarget.position.y][nextTarget.position.x].piece;
+                let cost = nextTarget._cost;
+                // console.log("nextTarget", nextTarget);
+                rating += cost;
+                description += `сможет атаковать врага(${cost})(${nextTarget.side} ${nextTarget.type} (${nextTarget.position.x} ${nextTarget.position.y})) `;
+              }
+            });
+          }
+
+          savedThis.getCell().set("piece", savedThis);
+          cellToMove.set("piece", savedTarget);
+
+          mainReport.push({description, rating, piece1, turn1});
+        });
+
+      });
+
+      console.log(mainReport);
+
+      let bestRating = -Infinity;
       let bestPiece;
       let bestTurn;
       let bestDescription;
 
-      pieces.forEach(piece => {
-        let turns = piece.getPossibleTurns();
-        let basePrice = piece.getCell().isUnderAttack() ? piece._cost : 0;
-        // console.log(turns, piece);
-        turns.forEach(turn => {
-          let description = "";
-          let map = this.game.board.map;
-          let cellToMove = map[turn.y][turn.x];
-          let savedThis = piece;
-          let savedEnemy = cellToMove.piece;
-          let price = basePrice;
-
-          description += basePrice > 0 ? "находится под ударом(+" + piece._cost + "), " : "";
-
-          piece.getCell().set("piece", false);
-          cellToMove.set("piece", savedThis);
-          let isUnderAttack = cellToMove.isUnderAttack({noCache: true});
-          if (!(savedThis.type === "king" && isUnderAttack)) {
-            if (piece.type === "pawn") {
-              price += 0.5;
-              description += "пешка(+0.5) ";
-            }
-            if (savedEnemy) {
-              price += savedEnemy._cost;
-              description += "обнаружен враг(+" + savedEnemy._cost + ") ";
-            }
-            if (isUnderAttack) {
-              price -= savedThis._cost;
-              description += "будет под ударом(-" + savedThis._cost + ") ";
-            }
-
-            let nextPossibleTurns = cellToMove.piece.getPossibleTurns(false);
-            // console.log(piece, nextPossibleTurns);
-            let bestSubRating;
-            let bestSubDescription = "";
-            nextPossibleTurns.forEach(nextTurn => {
-              let subRating = 0;
-              let subDescription = "";
-              let nextCell = map[nextTurn.y][nextTurn.x];
-              let nextPiece = nextCell.piece;
-              let enemyKing = this.game.board.findPiece(elem => {
-                return (elem.type === "king" && elem.side === piece.enemy);
-              })[0];
-
-              subDescription += "на позиции (" + nextTurn.x + " " + nextTurn.y + "): ";
-
-              if (nextPiece && nextPiece.side === piece.side) {
-                subRating += nextPiece._cost;
-                subDescription += "обнаружен союзник " + nextPiece.type + "(" + nextPiece.position.x + " " + nextPiece.position.y + ")" + ", ";
-              }
-              if (nextPiece && nextPiece === enemyKing) {
-                subRating += piece._cost * 0.9;
-                subDescription += " объявит шах королю " + "(" + nextPiece.position.x + " " + nextPiece.position.y + ")" + ", ";
-              }
-              if (nextPiece && nextPiece.side === piece.enemy && nextPiece !== enemyKing) {
-                subRating += nextPiece._cost;
-                subDescription += " обнаружен враг " + nextPiece.type + "(" + nextPiece.position.x + " " + nextPiece.position.y + ")" + ", ";
-              }
-
-              if (bestSubRating === undefined || subRating > bestSubRating
-                  || (subRating === bestSubRating && Math.random() - 0.5)) {
-                bestSubRating = subRating;
-                // bestPiece = piece;
-                // bestTurn = turn;
-                bestSubDescription = subDescription;
-              }
-            });
-
-            price += bestSubRating;
-            bestDescription += bestSubDescription;
-
-
-
-
-            if (bestRating === undefined || price > bestRating
-                || (price === bestRating && Math.random() - 0.5)) {
-              bestRating = price;
-              bestPiece = piece;
-              bestTurn = turn;
-              bestDescription = description;
-            }
-
-            console.log(`${piece.type} (${piece.position.x} ${piece.position.y}) оценивает ход на (${turn.x} ${turn.y}) рейтингом ${price} и описанием: ${description}`);
-            // console.log(price);
-          }
-
-          cellToMove.set("piece", savedEnemy);
-          piece.getCell().set("piece", savedThis);
-        })
+      mainReport.forEach(variant => {
+        // console.log(variant);
+        if (variant.rating > bestRating) {
+          bestRating = variant.rating;
+          bestPiece = variant.piece1;
+          bestTurn = variant.turn1;
+          bestDescription = variant.description;
+        }
       });
 
-      console.log(`ход ${bestPiece.type} (${bestPiece.position.x} ${bestPiece.position.y}) => (${bestTurn.x} ${bestTurn.y}) выбран лучшим с оценкой ${bestRating} на основании: ${bestDescription}`);
-      // console.log(bestDescription);
+      console.log(`${bestPiece.side} ${bestPiece.type} (${bestPiece.position.x} ${bestPiece.position.y}) => (${bestTurn.x} ${bestTurn.y}) выбран лучшим с описанием: ${bestDescription}`);
+
       return {piece: bestPiece, turn: bestTurn};
     }
   }
@@ -250,7 +299,8 @@
         return (piece.type === "king" && piece.side === this.state._turn);
       })[0];
 
-      let isUnderAttack = king.getCell().isUnderAttack();
+      let isUnderAttack = king.getCell().isUnderAttack({side: king.enemy});
+      console.log(isUnderAttack);
 
       // console.log(isUnderAttack);
 
@@ -258,6 +308,7 @@
         king.unCheck();
         return false;
       }
+      debugger;
 
       king.checkHandler();
     }
@@ -319,7 +370,7 @@
           this.board.clearHighlighted();
 
           //Клик на пустую клетку подсвечивает вражеские фигуры, которые могут ее атаковать
-          let pieces = this.board.map[position.y][position.x].isUnderAttack();
+          let pieces = this.board.map[position.y][position.x].isUnderAttack({side: enemy});
           if (pieces) {
             pieces.forEach(piece => {
               this.board.map[piece.position.y][piece.position.x].set("isHighlighted", true, true);
@@ -351,6 +402,8 @@
       //конвертируем ее в десятичное число - и это будет уникальное значение, описывающее состояние кликов,
       //в зависимости от состояния мы вызываем соответствующую финкцию functions[answer]
       let answer = parseInt(answers, 2);
+      let enemy = this.state._turn === window.BLACK ? window.WHITE : window.BLACK;
+      let ally = this.state._turn;
       console.log(answers, answer);
 
       functions[answer].call(this);
@@ -360,7 +413,8 @@
       this.board.clearHighlighted();
 
       //Клик ПКМ на любую клетку подсвечивает фигуры, которые могут ее атаковать
-      let pieces = this.board.map[position.y][position.x].isUnderAttack();
+      let enemy = this.state._turn === window.BLACK ? window.WHITE : window.BLACK;
+      let pieces = this.board.map[position.y][position.x].isUnderAttack({side: enemy});
       if (pieces) {
         pieces.forEach(piece => {
           this.board.map[piece.position.y][piece.position.x].set("isHighlighted", true, true);

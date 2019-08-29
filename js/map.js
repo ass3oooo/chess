@@ -22,7 +22,7 @@ class BoardCell {
     // options = {
     //   only: ["pawn", "horse"...],
     //   withOut: ["king", "queen"...],
-    //   side: BLACK || WHITE
+    //   side: BLACK || WHITE - под атакой кого?
     //   noCache: true || false
     // }
     let result = [];
@@ -33,9 +33,9 @@ class BoardCell {
       if (options.side && options.side !== piece.side) {
         return false;
       }
-      if (piece.enemy !== this.board.game.state._turn) {
-        return false;
-      }
+      // if (piece.enemy !== this.board.game.state._turn) {
+      //   return false;
+      // }
       if (options.withOut && options.withOut.includes(piece.type)) {
         return false;
       }
@@ -45,21 +45,24 @@ class BoardCell {
       return true;
     }, noCache);
 
-    // console.log(pieces);
+    // if (options.side) {
+    //   console.log(options.side, pieces);
+    // }
 
 
     pieces.forEach(piece => {
       this.set("piece", {side: piece.enemy, type: "pawn", _firstMove: false}); //Виртуальная пешка, для всех враг
-      piece.getPossibleTurns();
+      // piece.getPossibleTurns(false);
       // console.log(this.position.x, this.position.y, this.piece);
-      if (!piece._cachedPossibleTurns.length > 0){
+      if (piece._cachedPossibleTurns && !piece._cachedPossibleTurns.length > 0){
         // debugger;
-
+        piece.getPossibleTurns();
       }
       // try {
       // console.log(piece);
         // piece._cachedPossibleTurns.forEach(turn => {
-        piece.getPossibleTurns().forEach(turn => {
+        // console.log(piece);
+        piece.getPossibleTurns(false).forEach(turn => {
           // console.log(this, turn);
           if (this.position.x === turn.x && this.position.y === turn.y) {
             result.push(piece);

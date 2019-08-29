@@ -990,7 +990,7 @@
     }
 
     checkHandler() {
-      let isUnderAttack = this.getCell().isUnderAttack();
+      let isUnderAttack = this.getCell().isUnderAttack({side: this.enemy});
       console.log("========isUnderAttack", this, isUnderAttack);
 
       if (!isUnderAttack) {
@@ -1046,7 +1046,7 @@
 
           this.getCell().set("piece", false);
           cell.set("piece", this);
-          if (!cell.isUnderAttack({noCache: true})) {
+          if (!cell.isUnderAttack({noCache: true, side: this.enemy})) {
             console.log("if(!cell.isUnderAttack({noCache: true}))");
             variants.push({piece: this, turn: turn, price: this._firstMove ? 1 : 0});
           }
@@ -1068,8 +1068,8 @@
 
           piece.getCell().set("piece", false);
           cell.set("piece", savedAlly);
-          if (!this.getCell().isUnderAttack({noCache: true})) {
-            if (cell.isUnderAttack()) {
+          if (!this.getCell().isUnderAttack({noCache: true, side: this.enemy})) {
+            if (cell.isUnderAttack({side: this.enemy})) {
               variants.push({piece: piece, turn: turn, price: piece._cost});
             } else {
               variants.push({piece: piece, turn: turn, price: 0});
