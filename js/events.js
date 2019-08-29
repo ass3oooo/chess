@@ -16,18 +16,41 @@
     107: "cancel"
   };
 
-  canvas.addEventListener("click", function(evt) {
+  // toHorse.style.display = "none";
+  // toRook.style.display = "none";
+  // toElephant.style.display = "none";
+  // toQueen.style.display = "none";
 
+  function clickEvent(evt) {
     let clickPosition = {
       x: Math.floor(evt.layerX / game.board._cellwidth),
       y: Math.floor(evt.layerY / game.board._cellwidth),
     }
 
-    window.game.clickHandler(clickPosition);
+    if (!window.game.state.paused) {
+      window.game.clickHandler(clickPosition);
+    }
 
-  });
+  }
 
-  document.addEventListener("keyup", function(evt) {
+  function rightClickEvent(evt) {
+    evt.preventDefault();
+    let clickPosition = {
+      x: Math.floor(evt.layerX / game.board._cellwidth),
+      y: Math.floor(evt.layerY / game.board._cellwidth),
+    }
+
+    if (!window.game.state.paused) {
+      window.game.rightClickHandler(clickPosition);
+    }
+  }
+
+  window.gameClickEvent = clickEvent;
+
+  canvas.addEventListener("click", clickEvent);
+  canvas.addEventListener("contextmenu", rightClickEvent);
+
+  document.addEventListener("keydown", function(evt) {
     if (KEYCODES[evt.keyCode]) {
       window.game.keyboardHandler(KEYCODES[evt.keyCode]);
     }

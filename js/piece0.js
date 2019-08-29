@@ -45,10 +45,6 @@
       }
     }
 
-    getCell() {
-      return this.board.map[this.position.y][this.position.x];
-    }
-
     highlightTurns(turns) {
       if (!turns || !this._cachedPossibleTurns) {
         this._cachedPossibleTurns = this.getPossibleTurns();
@@ -79,12 +75,10 @@
       }
       let map = this.board.map;
 
-      let tmp = {};
       let isPossible = this.isPossibleMove(position);
-
       let force = position.force;
-      if (force) isPossible = true;
 
+      if (force) isPossible = true;
 
       if (isPossible) {
         //Стираем по старой позиции эту фигуру
@@ -95,8 +89,11 @@
         if (isPossible.enPassant) {
           map[this.position.y][position.x].set("piece", false);
         }
-        //Если это рокировка - сообщаем switchTurn, что необходимо провести рокировку
+        //Если это рокировка - переставляем ладью
         if (isPossible.castling) {
+          console.log("castling in moveTo");
+          console.log(isPossible.castling);
+
           let castling = this.board.game.switchTurn.castling;
           castling.need = true;
           castling.rook = isPossible.rook;
@@ -104,54 +101,54 @@
         }
         //И тут же этой фигуре устанавливаем позицию в ее свойствах
         this.position = {x: position.x, y: position.y};
-
         //Трансформация пешки
-        if (this.type === "pawn") {
-          let enemyY = (this.side === window.BLACK) ? 7 : 0;
-          if (this.position.y === enemyY) {
-            let pawn = this;
-            let state = this.board.game.state;
+        let enemyY = (this.side === window.BLACK) ? 7 : 0;
+        if (this.position.y === enemyY) {
 
-            state.paused = true;
-            //Функция вернет event, event.target - кнопка,
-            // по которой нажал игрок при выборе превращения
-            state.requiredAction = async function() {
-              let listener = await new Promise((resolve) => {
+          function chooseTransform() {
+            return new Promise((resolve, reject) => {
+              toHorse.style.display = "block";
+              toRook.style.display = "block";
+              toElephant.style.display = "block";
+              toQueen.style.display = "block";
 
-                transformButtonsWrapper.classList.toggle("active", true);
+              function hideButtons() {
+                toHorse.style.display = "none";
+                toRook.style.display = "none";
+                toElephant.style.display = "none";
+                toQueen.style.display = "none";
+              }
 
-                function onButtonClickTransform(evt) {
-                  //Снимаем обработчики с кнопок
-                  toHorse.removeEventListener("click", onButtonClickTransform);
-                  toRook.removeEventListener("click", onButtonClickTransform);
-                  toElephant.removeEventListener("click", onButtonClickTransform);
-                  toQueen.removeEventListener("click", onButtonClickTransform);
-                  //Скрываем форму с кнопками выбора фигуры
-                  transformButtonsWrapper.classList.toggle("active", false);
-
-                  resolve(evt);
-                }
-                //Навешиваем обработчики на кнопки выбора фигур
-                toHorse.addEventListener("click", onButtonClickTransform);
-                toRook.addEventListener("click", onButtonClickTransform);
-                toElephant.addEventListener("click", onButtonClickTransform);
-                toQueen.addEventListener("click", onButtonClickTransform);
+              toHorse.addEventListener("click", function() {
+                resolve("horse");
+                hideButtons();
               });
+              toRook.addEventListener("click", function() {
+                resolve("rook");
+                hideButtons();
+              });
+              toElephant.addEventListener("click", function() {
+                resolve("elephant");
+                hideButtons();
+              });
+              toQueen.addEventListener("click", function() {
+                resolve("queen");
+                hideButtons();
+              });
+            });
+          }
 
-              let newPieceType = listener.target.name;
-              state.paused = false;
-
-              return pawn.board.map[pawn.position.y][pawn.position.x]
-              .set("piece", new window.Pieces[newPieceType]({
-                side: pawn.side,
-                type: newPieceType,
-                position: {
-                  x: pawn.position.x,
-                  y: pawn.position.y
-                },
-                board: pawn.board
-              }));
-            }
+          let x = await chooseTransform();
+          if (window.Pieces[x]) {
+            this.board.addPiece({
+              side: this.side,
+              type: x,
+              position: {
+                x: this.position.x,
+                y: this.position.y
+              },
+              board: this.board,
+            });
           }
         }
         //Перерисовываем клетки, которые требуется перерисовать
@@ -164,56 +161,35 @@
         return true;
       } else {
         console.log("can not move to this point");
-        console.log(this, position, isPossible);
-        debugger;
         return false;
       }
     }
 
     isPossibleMove(position) {
 
-      // debugger;
-
-      let turns = [];
-
-      if (this._requiredTurns) {
-        console.log("turns are from required");
-        console.log(this._requiredTurns);
-        turns = this._requiredTurns;
-      } else if (!this._cachedPossibleTurns) {
+      if (!this._cachedPossibleTurns) {
         this._cachedPossibleTurns = this.getPossibleTurns();
-        turns = this._cachedPossibleTurns.slice();
-        console.log("turns are from second if");
-      } else {
-        turns = this._cachedPossibleTurns;
-        console.log("turns are from cache");
       }
 
       let isPossible = false;
-      for (let i = 0; i < turns.length; i++) {
-        console.log("isPossibleMove: ", turns[i].x === position.x && turns[i].y === position.y);
-        if (turns[i].x === position.x && turns[i].y === position.y) {
+      for (let i = 0; i < this._cachedPossibleTurns.length; i++) {
+        if (this._cachedPossibleTurns[i].x === position.x
+            && this._cachedPossibleTurns[i].y === position.y) {
               isPossible = true;
-              if (turns[i].enPassant) {
+              if (this._cachedPossibleTurns[i].enPassant) {
                 isPossible = {enPassant: true};
               }
-              if (turns[i].castling) {
+              if (this._cachedPossibleTurns[i].castling) {
                 isPossible = {
                   castling: true,
-                  rook: turns[i].rook,
-                  target: turns[i].target
+                  rook: this._cachedPossibleTurns[i].rook,
+                  target: this._cachedPossibleTurns[i].target
                 };
               }
               break;
             }
       }
 
-      // console.log(this, turns);
-
-      if (!isPossible) {
-        console.log("=============", turns);
-        console.log(this, position);
-      }
       return isPossible;
     }
 
@@ -230,7 +206,6 @@
 
       //For enPassant move and first move up to 2 cells
       this._firstMove = 2;
-      this._cost = 1;
     }
 
     moveTo(position) {
@@ -284,12 +259,7 @@
       ];
     }
 
-    getPossibleTurns(useCache = true) {
-
-      if (this._requiredTurns) {
-        return this._requiredTurns;
-      }
-
+    getPossibleTurns() {
       let turns = [];
 
       let left = this.position.x - 1;
@@ -331,9 +301,7 @@
         turns.push({x: this.position.x, y: doubleForward});
       }
 
-      if (useCache) {
-        this._cachedPossibleTurns = turns;
-      }
+      this._cachedPossibleTurns = turns;
 
       // if (isExist(this.position.y, right) && map[this.position.y][right].piece._firstMove === 1
       //     && map[forward]) {
@@ -356,7 +324,6 @@
   class Elephant extends Piece {
     constructor(options) {
       super(options);
-      this._cost = 3;
     }
 
     getRenderingPoints() {
@@ -399,12 +366,7 @@
       ]
     }
 
-    getPossibleTurns(useCache) {
-
-      if (this._requiredTurns) {
-        return this._requiredTurns;
-      }
-
+    getPossibleTurns() {
       let turns = [];
 
       let obstacles = {
@@ -481,10 +443,7 @@
         }
       }
 
-      if (useCache) {
-        this._cachedPossibleTurns = turns;
-      }
-
+      this._cachedPossibleTurns = turns;
 
       return turns;
     }
@@ -494,7 +453,6 @@
   class Horse extends Piece {
     constructor(options) {
       super(options);
-      this._cost = 3;
     }
 
     getRenderingPoints() {
@@ -545,12 +503,7 @@
       ];
     }
 
-    getPossibleTurns(useCache) {
-
-      if (this._requiredTurns) {
-        return this._requiredTurns;
-      }
-
+    getPossibleTurns() {
       let turns = [
         {x: this.position.x - 2, y: this.position.y - 1},
         {x: this.position.x - 2, y: this.position.y + 1},
@@ -571,9 +524,7 @@
         }
       });
 
-      if (useCache) {
-        this._cachedPossibleTurns = turns;
-      }
+      this._cachedPossibleTurns = turns;
 
       return turns;
     }
@@ -586,7 +537,6 @@
 
       //For castling
       this._firstMove = true;
-      this._cost = 5;
     }
 
     moveTo(position) {
@@ -660,12 +610,7 @@
       ];
     }
 
-    getPossibleTurns(useCache) {
-
-      if (this._requiredTurns) {
-        return this._requiredTurns;
-      }
-
+    getPossibleTurns() {
       let turns = [];
 
       let obstacles = {
@@ -730,9 +675,7 @@
         }
       }
 
-      if (useCache) {
-        this._cachedPossibleTurns = turns;
-      }
+      this._cachedPossibleTurns = turns;
 
       return turns;
     }
@@ -742,7 +685,6 @@
   class Queen extends Piece {
     constructor(options) {
       super(options);
-      this._cost = 11;
     }
 
     getRenderingPoints() {
@@ -807,12 +749,7 @@
       ];
     }
 
-    getPossibleTurns(useCache) {
-
-      if (this._requiredTurns) {
-        return this._requiredTurns;
-      }
-
+    getPossibleTurns() {
       let turns = [];
 
       let obstacles = {
@@ -945,9 +882,7 @@
         }
       }
 
-      if (useCache) {
-        this._cachedPossibleTurns = turns;
-      }
+      this._cachedPossibleTurns = turns;
 
       return turns;
     }
@@ -960,8 +895,6 @@
       //For castling
       this._firstMove = true;
       this._wasChecked = false;
-      this._nowChecked = false;
-      this._cost = 1000;
     }
 
     moveTo(position) {
@@ -971,129 +904,6 @@
       }
 
       super.moveTo(position);
-    }
-
-    check() {
-      if (!this._wasChecked) {
-        this._wasChecked = true;
-      }
-      this._nowChecked = true;
-    }
-
-    unCheck() {
-      this._nowChecked = false;
-      this.board.getAllPieces().forEach(piece => {
-        if (piece._requiredTurns) {
-          piece._requiredTurns = false;
-        }
-      });
-    }
-
-    checkHandler() {
-      let isUnderAttack = this.getCell().isUnderAttack();
-      console.log("========isUnderAttack", this, isUnderAttack);
-
-      if (!isUnderAttack) {
-        return false;
-      }
-
-      this.check();
-      console.log("вызвана this.check() для ", this);
-
-
-      this.getCell().set("isHighlighted", true, true);
-      isUnderAttack.forEach(piece => {
-        piece.getCell().set("isHighlighted", true, true);
-      });
-
-      let variants = this.getDefenceVariants();
-
-      this.board.findPiece(piece => {
-        return (piece.side === this.side);
-      }).forEach(piece => {
-        piece._requiredTurns = [];
-        variants.forEach(variant => {
-          if (variant.piece === piece) {
-            piece._requiredTurns.push(variant.turn);
-          }
-        });
-      });
-    }
-
-    getDefenceVariants() {
-      let variants = [];
-      // variants = [
-      //   {
-      //     piece: Piece,
-      //     turn: {x, y},
-      //     price: INT
-      //   },
-      // ]
-
-      const pieces = this.board.findPiece(piece => {
-        return (piece.type !== "king" && piece.side === this.side) ? true : false;
-      });
-
-      let kingPossibleTurns = this.getPossibleTurns();
-
-      if (kingPossibleTurns.length > 0) {
-        kingPossibleTurns.forEach(turn => {
-          const map = this.board.map;
-          const cell = map[turn.y][turn.x];
-
-          const savedKing = this;
-          const savedTarget = cell.piece;
-
-          this.getCell().set("piece", false);
-          cell.set("piece", this);
-          if (!cell.isUnderAttack({noCache: true})) {
-            console.log("if(!cell.isUnderAttack({noCache: true}))");
-            variants.push({piece: this, turn: turn, price: this._firstMove ? 1 : 0});
-          }
-
-          cell.set("piece", savedTarget);
-          this.getCell().set("piece", this);
-        });
-      }
-
-      pieces.forEach(piece => {
-        const map = this.board.map;
-
-        piece.getPossibleTurns().forEach(turn => {
-
-          const cell = map[turn.y][turn.x];
-
-          const savedEnemy = cell.piece;
-          const savedAlly = piece;
-
-          piece.getCell().set("piece", false);
-          cell.set("piece", savedAlly);
-          if (!this.getCell().isUnderAttack({noCache: true})) {
-            if (cell.isUnderAttack()) {
-              variants.push({piece: piece, turn: turn, price: piece._cost});
-            } else {
-              variants.push({piece: piece, turn: turn, price: 0});
-            }
-          }
-
-          cell.set("piece", savedEnemy);
-          piece.getCell().set("piece", savedAlly);
-        })
-      });
-
-
-      // console.log(kingPossibleTurns);
-      // console.log(variants);
-      // console.log(!(variants.length > 1));
-      if (!(variants.length > 1)) {
-        this.board.game.state.paused = true;
-        this.board.game.state.requiredAction = function() {
-          alert("Шах и мат");
-          window.game = new window.Game();
-        }
-        this.board.game.state.requiredAction();
-      }
-      return variants;
     }
 
     getRenderingPoints() {
@@ -1178,11 +988,7 @@
       ];
     }
 
-    getPossibleTurns(useCache) {
-
-      if (this._requiredTurns) {
-        return this._requiredTurns;
-      }
+    getPossibleTurns() {
 
       let turns = [];
 
@@ -1194,7 +1000,7 @@
         if (x1 < 8) {
           let nextCell = this.board.map[y][x1];
           if (nextCell.piece.side !== this.side) {
-            turns.push({x: x1, y: y});
+            turns.push({x: x1, y: y})
           }
         }
       }
@@ -1326,23 +1132,16 @@
       ];
 
       turns = turns.filter(elem => {
+        let result = true;
         for (let i = 0; i < enemyKingField.length; i++) {
           if (elem.x === enemyKingField[i][0] && elem.y === enemyKingField[i][1]) {
-            return false;
+            result = false;
+            break;
           }
         }
-        return true;
+        return result;
       });
-
-      turns = turns.filter(turn => {
-        let cell = this.board.map[turn.y][turn.x];
-        let isUnderAttack = cell.isUnderAttack({withOut: ["king"], side: this.enemy});
-        return isUnderAttack.length > 0 ? false : true;
-      });
-
-      if (useCache) {
-        this._cachedPossibleTurns = turns;
-      }
+      this._cachedPossibleTurns = turns;
 
       return turns;
     }

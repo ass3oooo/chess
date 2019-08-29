@@ -11,12 +11,78 @@ class BoardCell {
       x: options.x,
       y: options.y
     }
-
-    // {isBlack: true, board: game.board, x: 2, y: 2}
   }
 
   isEmpty() {
     return this.piece ? false : true;
+  }
+
+  isUnderAttack(options = false) {
+    // console.log("options in isUnderAttack", options);
+    // options = {
+    //   only: ["pawn", "horse"...],
+    //   withOut: ["king", "queen"...],
+    //   side: BLACK || WHITE
+    //   noCache: true || false
+    // }
+    let result = [];
+    let savePiece = this.piece;
+    let noCache = options.noCache;
+
+    let pieces = this.board.findPiece(piece => {
+      if (options.side && options.side !== piece.side) {
+        return false;
+      }
+      if (piece.enemy !== this.board.game.state._turn) {
+        return false;
+      }
+      if (options.withOut && options.withOut.includes(piece.type)) {
+        return false;
+      }
+      if (options.only && !options.only.includes(piece.type)) {
+        return false;
+      }
+      return true;
+    }, noCache);
+
+    // console.log(pieces);
+
+
+    pieces.forEach(piece => {
+      this.set("piece", {side: piece.enemy, type: "pawn", _firstMove: false}); //Виртуальная пешка, для всех враг
+      piece.getPossibleTurns();
+      // console.log(this.position.x, this.position.y, this.piece);
+      if (!piece._cachedPossibleTurns.length > 0){
+        // debugger;
+
+      }
+      // try {
+      // console.log(piece);
+        // piece._cachedPossibleTurns.forEach(turn => {
+        piece.getPossibleTurns().forEach(turn => {
+          // console.log(this, turn);
+          if (this.position.x === turn.x && this.position.y === turn.y) {
+            result.push(piece);
+          }
+          if (turn.enPassant) {
+            if (piece.position.y === this.position.y
+              && (piece.position.x - 1 === this.position.x || piece.position.x + 1 === this.position.x)) {
+                result.push(piece);
+              }
+            }
+          });
+      // } catch (e) {
+      //   return false;
+      // }
+    });
+
+    // console.log("isUnderAttack", this, this.board.map[0][4].piece);
+
+    // console.log("result", result);
+
+    this.set("piece", savePiece);
+
+    return result.length > 0 ? result : false;
   }
 
   set(prop, value, forceRender = false) {
@@ -67,7 +133,6 @@ class ChessBoard {
     this._cells = 8;
     this._cellwidth = this._side / this._cells;
 
-    this.pieces = [];
     this.map = [];
     this.game = options.game;
   }
@@ -75,9 +140,47 @@ class ChessBoard {
   addPiece(options) {
     if (window.Pieces.checkInitParameters(options)) {
       let piece = new window.Pieces[options.type](options);
-      this.pieces.push(piece);
+      this.map[piece.position.y][piece.position.x].set("piece", piece);
       return piece;
     }
+  }
+
+  findPiece(cb, noCache) {
+
+    if (!this.findPiece.reset) {
+      let self = this;
+      this.findPiece.reset = function() {
+        self.findPiece._cachedResult = false;
+      }
+    }
+    let result = [];
+    if (!noCache) {
+      if (!this.findPiece._cachedResult) {
+        this.findPiece._cachedResult = [];
+        this.map.forEach(row => {
+          row.forEach(elem => {
+            if (elem.piece) this.findPiece._cachedResult.push(elem.piece);
+          });
+        });
+      }
+
+      result = this.findPiece._cachedResult.slice();
+    } else {
+      this.map.forEach(row => {
+        row.forEach(elem => {
+          if (elem.piece) result.push(elem.piece);
+        })
+      })
+    }
+
+
+    result = result.filter(cb);
+
+    return result;
+  }
+
+  getAllPieces() {
+    return this.findPiece(elem => {return elem});
   }
 
   renderAll() {
@@ -108,23 +211,7 @@ class ChessBoard {
     });
   }
 
-  renderPieces() {
-    this.pieces.forEach(piece => {
-      piece.render();
-    });
-  }
-
-  consolePieces(side = false) {
-    if (!(side === "b" || side === "w")) {
-      console.log(this.pieces);
-    } else {
-      console.log(this.pieces.filter(elem => {
-        return elem.side === side;
-      }));
-    }
-  }
-
-  updateMap() {
+  initMap() {
 
     this.map = [];
 
@@ -143,11 +230,6 @@ class ChessBoard {
         this.map[x].push(new BoardCell(cellOptions));
       }
     }
-
-    this.pieces.forEach(piece => {
-      this.map[piece.position.y][piece.position.x].set("piece", piece);
-    });
-
   }
 
   updateMapSingle(piece, newPosition) {

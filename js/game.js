@@ -6,9 +6,149 @@
   const WHITE = "w";
   window.WHITE = WHITE;
 
+  class AI { //на скорую руку, лишь бы работало
+    constructor(game, side) {
+      this.game = game;
+      game.ai = this;
+
+      this.side = side;
+    }
+
+    makeTurn() {
+      let bestVariant = this.rateTurns();
+      let map = this.game.board.map;
+      let cellToMove = map[bestVariant.turn.y][bestVariant.turn.x];
+      let position = bestVariant.turn;
+      let piece = bestVariant.piece;
+
+      this.from = {
+        x: piece.position.x,
+        y: piece.position.y
+      };
+      this.to = {
+        x: position.x,
+        y: position.y
+      }
+
+      piece.moveTo(position);
+    }
+
+    rateTurns() {
+      let pieces = this.game.board.findPiece(piece => {
+        return (piece.side === this.game.state._turn);
+      });
+
+      let bestVariants = [];
+
+      let bestRating;
+      let bestPiece;
+      let bestTurn;
+      let bestDescription;
+
+      pieces.forEach(piece => {
+        let turns = piece.getPossibleTurns();
+        let basePrice = piece.getCell().isUnderAttack() ? piece._cost : 0;
+        // console.log(turns, piece);
+        turns.forEach(turn => {
+          let description = "";
+          let map = this.game.board.map;
+          let cellToMove = map[turn.y][turn.x];
+          let savedThis = piece;
+          let savedEnemy = cellToMove.piece;
+          let price = basePrice;
+
+          description += basePrice > 0 ? "находится под ударом(+" + piece._cost + "), " : "";
+
+          piece.getCell().set("piece", false);
+          cellToMove.set("piece", savedThis);
+          let isUnderAttack = cellToMove.isUnderAttack({noCache: true});
+          if (!(savedThis.type === "king" && isUnderAttack)) {
+            if (piece.type === "pawn") {
+              price += 0.5;
+              description += "пешка(+0.5) ";
+            }
+            if (savedEnemy) {
+              price += savedEnemy._cost;
+              description += "обнаружен враг(+" + savedEnemy._cost + ") ";
+            }
+            if (isUnderAttack) {
+              price -= savedThis._cost;
+              description += "будет под ударом(-" + savedThis._cost + ") ";
+            }
+
+            let nextPossibleTurns = cellToMove.piece.getPossibleTurns(false);
+            // console.log(piece, nextPossibleTurns);
+            let bestSubRating;
+            let bestSubDescription = "";
+            nextPossibleTurns.forEach(nextTurn => {
+              let subRating = 0;
+              let subDescription = "";
+              let nextCell = map[nextTurn.y][nextTurn.x];
+              let nextPiece = nextCell.piece;
+              let enemyKing = this.game.board.findPiece(elem => {
+                return (elem.type === "king" && elem.side === piece.enemy);
+              })[0];
+
+              subDescription += "на позиции (" + nextTurn.x + " " + nextTurn.y + "): ";
+
+              if (nextPiece && nextPiece.side === piece.side) {
+                subRating += nextPiece._cost;
+                subDescription += "обнаружен союзник " + nextPiece.type + "(" + nextPiece.position.x + " " + nextPiece.position.y + ")" + ", ";
+              }
+              if (nextPiece && nextPiece === enemyKing) {
+                subRating += piece._cost * 0.9;
+                subDescription += " объявит шах королю " + "(" + nextPiece.position.x + " " + nextPiece.position.y + ")" + ", ";
+              }
+              if (nextPiece && nextPiece.side === piece.enemy && nextPiece !== enemyKing) {
+                subRating += nextPiece._cost;
+                subDescription += " обнаружен враг " + nextPiece.type + "(" + nextPiece.position.x + " " + nextPiece.position.y + ")" + ", ";
+              }
+
+              if (bestSubRating === undefined || subRating > bestSubRating
+                  || (subRating === bestSubRating && Math.random() - 0.5)) {
+                bestSubRating = subRating;
+                // bestPiece = piece;
+                // bestTurn = turn;
+                bestSubDescription = subDescription;
+              }
+            });
+
+            price += bestSubRating;
+            bestDescription += bestSubDescription;
+
+
+
+
+            if (bestRating === undefined || price > bestRating
+                || (price === bestRating && Math.random() - 0.5)) {
+              bestRating = price;
+              bestPiece = piece;
+              bestTurn = turn;
+              bestDescription = description;
+            }
+
+            console.log(`${piece.type} (${piece.position.x} ${piece.position.y}) оценивает ход на (${turn.x} ${turn.y}) рейтингом ${price} и описанием: ${description}`);
+            // console.log(price);
+          }
+
+          cellToMove.set("piece", savedEnemy);
+          piece.getCell().set("piece", savedThis);
+        })
+      });
+
+      console.log(`ход ${bestPiece.type} (${bestPiece.position.x} ${bestPiece.position.y}) => (${bestTurn.x} ${bestTurn.y}) выбран лучшим с оценкой ${bestRating} на основании: ${bestDescription}`);
+      // console.log(bestDescription);
+      return {piece: bestPiece, turn: bestTurn};
+    }
+  }
+
   class Game {
     constructor() {
       this.board = new ChessBoard({game: this});
+
+      this.board.initMap();
+
+      this.ai = new AI(this, window.BLACK);
 
       generateOptions.call(this).forEach(option => {
         this.board.addPiece(option);
@@ -18,14 +158,17 @@
         _turn: WHITE,
         getTurn: function() {
           return this._turn;
-        }
+        },
+        paused: false,
+        reason: false,
       };
 
-      this.board.updateMap();
+
       this.board.renderAll();
 
       this.switchTurn.enPassantHandler = function() {
-        let piece = this.board.pieces.filter(elem => {
+
+        let piece = this.board.findPiece(elem => {
           return (elem.type === "pawn" && elem.side === this.state.getTurn()
             && elem._firstMove === 1) ? true : false;
         })[0];
@@ -34,17 +177,89 @@
           piece._firstMove = false;
         }
       }
+      this.switchTurn.castling = {};
 
       this.pointerPosition = {};
       this.setPointerToKing();
 
     }
 
-    switchTurn() {
+    async switchTurn() {
+      let self = this.switchTurn;
+
+      // PAUSE
+      if (this.state.paused) {
+        await this.state.requiredAction();
+        this.board.renderAll();
+      }
+
+      // console.log("switchTurn continues...");
+
       this.state._turn = this.state._turn === WHITE ? BLACK : WHITE;
-      this.switchTurn.enPassantHandler.call(this);
+      //enPassantHandler следит за пешками, уязвимыми для "Взятия на проходе"
+      //и запрещает воспользоваться этим ходом через ход.
+      //По правилам, "Взять на проходе" можно только на следующий ход, не позднее
+      self.enPassantHandler.call(this);
+
+      //Управление рокировкой
+      if (self.castling.need) {
+        //Перемещение короля завершило ход, переключаем его обратно
+        this.state._turn = this.state._turn === WHITE ? BLACK : WHITE;
+        //Сохраняем ладью и клетку для нее в переменные
+        let rook = self.castling.rook;
+        let position = {
+          x: self.castling.target.position.x,
+          y: self.castling.target.position.y,
+          force: true //Флаг для насильного перемещения ладьи,
+                      //т.к. король теперь для нее - препятствие
+        }
+        self.castling = {}; //обнуляем управление рокировкой, иначе - рекурсия
+        rook.moveTo(position); //Ладья перемещается и передает ход друшому игроку
+      }
+
+      //Тестовая фнукция
       this.switchTurn.test();
+
+      //Сбросим закешированный список фигур для поиска, т.к. какая-то могла быть уничтожена
+      this.board.findPiece.reset();
+      //Сбрасываем активную фигуру, убираем подсветку с клеток перед передачей хода
+      this.prevCell = false;
+      this.board.clearHighlighted();
+      //Указатель на короля игрока, которому передан ход
       this.setPointerToKing();
+      //Вызов функции, управляющей шахом
+      this.checkHandler();
+      if (this.state.getTurn() === this.ai.side) {
+        this.ai.makeTurn();
+        if (this.ai.from && this.ai.to) {
+          let from = this.ai.from;
+          let to = this.ai.to;
+          let map = this.board.map;
+          let fromCell = map[from.y][from.x];
+          let toCell = map[to.y][to.x];
+
+          fromCell.set("isHighlighted", true, true);
+          toCell.set("isHighlighted", true, true);
+        }
+      }
+    }
+
+    checkHandler() {
+      let map = this.board.map;
+      let king = this.board.findPiece(piece => {
+        return (piece.type === "king" && piece.side === this.state._turn);
+      })[0];
+
+      let isUnderAttack = king.getCell().isUnderAttack();
+
+      // console.log(isUnderAttack);
+
+      if (!isUnderAttack) {
+        king.unCheck();
+        return false;
+      }
+
+      king.checkHandler();
     }
 
     clickHandler(position) {
@@ -53,7 +268,7 @@
       let answers = "";
 
       let functions = {
-        "10": function() { //prev click on enemy piece or on empty cell or no prev click, this on our piece => choose this piece
+        "10": function() { //пред. клик на вражескую фигуру или на пустую клетку, этот клик на нашу фигуру => выбрать эту фигуру
 
           this.prevCell = currentCell;
           this.board.clearHighlighted();
@@ -62,27 +277,26 @@
           this.setPointer(this.prevCell.piece.position);
           this.prevCell.piece.highlightTurns();
         },
-        "8": function() { //prev click on empty piece or no prev click, this on our piece => choose this piece
+        "8": function() { //пред. клик на пустую клетку или пред. клика не было, этот клик на нашу фигуру => выбрать эту фигуру
 
-          this.prevCell = false; //???????????????????????????
+          this.prevCell = false;
           this.board.clearHighlighted();
 
           currentCell.set("isHighlighted", true, true);
           currentCell.piece.highlightTurns();
         },
-        "12": function() { //prev click on our piece, this on enemy piece => make turn, remove enemy piece
+        "12": function() { //пред. клик на нашу фигуру, этот клик на вражескую => сделать ход, удалить вражескую фигуру
 
           if (this.prevCell.piece.isPossibleMove(position)) {
-            
+
 
             this.prevCell.piece.moveTo(currentCell.piece.position);
           } else {
             console.log("impossible move");
           }
-          this.prevCell = false;
-          this.board.clearHighlighted();
         },
-        "4": function() { //prev click on any piece, this click on empty cell => try make turn
+        "4": function() { //пред.клик на любую фигуру, этот клик на пустую клетку => попробовать сделать ход
+
           if (this.state.getTurn() === this.prevCell.piece.side
               && this.prevCell.piece.isPossibleMove(position)) {
                 console.log("move is possible");
@@ -92,17 +306,27 @@
             if (this.state.getTurn() !== this.prevCell.piece.side) {
               console.log("not your turn. this turn is: ", this.state.getTurn());
             }
+            this.prevCell = false;
+            this.board.clearHighlighted();
             this.board.renderRequiredCells();
           }
 
-          this.prevCell = false;
-          this.board.clearHighlighted();
+
 
         },
-        "0": function() { // prev click on enemy, this - on empty cell. clears enemy`s possible turns
+        "0": function() { //пред. клик на вражескую фигуру или пустую клетку, этот - на пустую клетку => удалить предыдущую подсветку, посчитать и подсветить фигуры, которые могут атаковать эту клетку
+
           this.board.clearHighlighted();
+
+          //Клик на пустую клетку подсвечивает вражеские фигуры, которые могут ее атаковать
+          let pieces = this.board.map[position.y][position.x].isUnderAttack();
+          if (pieces) {
+            pieces.forEach(piece => {
+              this.board.map[piece.position.y][piece.position.x].set("isHighlighted", true, true);
+            });
+          }
         },
-        "14": function() { //prev click on our piece, this click on another our piece => choose this piece, then highlight
+        "14": function() { //пред. клик на нашу фигуру (она теперь выбрана), этот клик на другую нашу фигуру => перевыбрать новую фигуру и подсветить ее
 
           this.board.clearHighlighted();
           this.prevCell = currentCell;
@@ -110,13 +334,12 @@
           this.prevCell.piece.highlightTurns();
           this.setPointer(this.prevCell.piece.position);
         },
-        "15": function() { //prev click and this click on this our piece => unchoose this piece
+        "15": function() { //пред. и этот клик - на нашу фигуру (одну и ту же) => отменить выбор этот фигуры как активной
+
           this.prevCell = false;
 
           this.board.clearHighlighted();
         }
-
-
       }
 
       answers += (!currentCell.isEmpty()) ? "1" : "0";
@@ -124,23 +347,33 @@
       answers += (currentCell.piece.side === game.state.getTurn()) ? "1" : "0";
       answers += (this.prevCell && (currentCell.piece === this.prevCell.piece)) ? "1" : "0";
 
-      //after answer the questions, the "answers" variable becomes a string like binary number "1001",
-      //convert them to decimal - and that will be unique value, describes unique state,
-      //depending on which we use the corresponding function in functions[answer]
-
+      //после ответа на вопросы переменная answers становится строкой в виде "1001",
+      //конвертируем ее в десятичное число - и это будет уникальное значение, описывающее состояние кликов,
+      //в зависимости от состояния мы вызываем соответствующую финкцию functions[answer]
       let answer = parseInt(answers, 2);
       console.log(answers, answer);
-      console.log("inClickHander", position);
 
       functions[answer].call(this);
     }
 
+    rightClickHandler(position) {
+      this.board.clearHighlighted();
+
+      //Клик ПКМ на любую клетку подсвечивает фигуры, которые могут ее атаковать
+      let pieces = this.board.map[position.y][position.x].isUnderAttack();
+      if (pieces) {
+        pieces.forEach(piece => {
+          this.board.map[piece.position.y][piece.position.x].set("isHighlighted", true, true);
+        });
+      }
+    }
+
     setPointerToKing() {
       let turn = this.state.getTurn();
-      let king = this.board.pieces.filter(elem => {
+
+      let king = this.board.findPiece(elem => {
         return (elem.type === "king") && (elem.side === this.state._turn)
       })[0];
-
       this.setPointer(king.position);
     }
 
@@ -163,7 +396,6 @@
     }
 
     keyboardHandler(action) {
-      console.log("keyboardHandler",this.pointerPosition);
       let x = this.pointerPosition.x;
       let y = this.pointerPosition.y;
       let set1 = this.setPointer.bind(this);
@@ -205,38 +437,9 @@
         actions[action].call(this);
       }
     }
-
-    // parseCoords() {
-    //
-    //   let x = parseInt(arguments[0]["x"]);
-    //   let y = parseInt(arguments[0]["y"]);
-    //
-    //   if (isNaN(x) || isNaN(y)) {
-    //     x = parseInt(arguments[0]);
-    //     y = parseInt(arguments[1]);
-    //   }
-    //
-    //   if (isNaN(x) || isNaN(y)) {
-    //     x = parseInt(arguments.x);
-    //     y = parseInt(arguments.y);
-    //   }
-    //
-    //   let position = {
-    //     x: x,
-    //     y: y
-    //   };
-    //
-    //   if (isNaN(position.x) || isNaN(position.y)) {
-    //     console.log("can not parse position. use ({x: 'x', y: 'y'}) or (['x', 'y']) or ('x', 'y')");
-    //     console.log("Переданные в функцию параметры: ", arguments);
-    //     console.log("Преобразованные параметры: ", position);
-    //     return false;
-    //   }
-    //
-    //   return position;
-    // }
   }
 
+  //Создание параметров для фигур
   function generateOptions() {
 
     let options = [];
@@ -300,7 +503,6 @@
       };
     }
   }
-
+  window.Game = Game;
   window.game = new Game();
-
 })();
