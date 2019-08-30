@@ -22,6 +22,7 @@ class BoardCell {
     // options = {
     //   only: ["pawn", "horse"...],
     //   withOut: ["king", "queen"...],
+    //   withOutPiece: Piece,
     //   side: BLACK || WHITE - под атакой кого?
     //   noCache: true || false
     // }
@@ -36,6 +37,9 @@ class BoardCell {
       // if (piece.enemy !== this.board.game.state._turn) {
       //   return false;
       // }
+      if (options.withOutPiece && piece === options.withOutPiece) {
+        return false;
+      }
       if (options.withOut && options.withOut.includes(piece.type)) {
         return false;
       }

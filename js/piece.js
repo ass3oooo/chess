@@ -177,21 +177,21 @@
       let turns = [];
 
       if (this._requiredTurns) {
-        console.log("turns are from required");
+        // console.log("turns are from required");
         console.log(this._requiredTurns);
         turns = this._requiredTurns;
       } else if (!this._cachedPossibleTurns) {
         this._cachedPossibleTurns = this.getPossibleTurns();
         turns = this._cachedPossibleTurns.slice();
-        console.log("turns are from second if");
+        // console.log("turns are from second if");
       } else {
         turns = this._cachedPossibleTurns;
-        console.log("turns are from cache");
+        // console.log("turns are from cache");
       }
 
       let isPossible = false;
       for (let i = 0; i < turns.length; i++) {
-        console.log("isPossibleMove: ", turns[i].x === position.x && turns[i].y === position.y);
+        // console.log("isPossibleMove: ", turns[i].x === position.x && turns[i].y === position.y);
         if (turns[i].x === position.x && turns[i].y === position.y) {
               isPossible = true;
               if (turns[i].enPassant) {

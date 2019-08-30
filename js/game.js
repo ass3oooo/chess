@@ -54,12 +54,26 @@
 
         if (nowIsUnderAttack) {
           base = piece1._cost;
-          baseDesc += "находится под ударом";
+          baseDesc += `находится под ударом(${base} к любому ходу) `;
           // console.log(`${piece1.side} ${piece1.type} (${piece1.position.x} ${piece1.position.y}) стоя на месте, подвергается атаке со стороны `, nowIsUnderAttack);
           // console.log(piece1);
-          let isUnderProtection = piece1.getCell().isUnderAttack({noCache: true, side: piece1.side});
+          let isUnderProtection = piece1.getCell().isUnderAttack({noCache: true, side: piece1.side, withOutPiece: piece1});
           if (isUnderProtection) {
-            // console.log("находится под защитой ", isUnderProtection);
+            let cost = nowIsUnderAttack.reduce((acc, elem) => {
+              if (elem._cost < Infinity) {
+                return elem._cost;
+              }
+            }, Infinity);
+            let allyCost = isUnderProtection.reduce((acc, elem) => {
+              if (elem._cost < Infinity) {
+                return elem._cost;
+              }
+            }, Infinity);
+            if (cost > allyCost) {
+              cost = -cost;
+              base += cost;
+              baseDesc += `находится под защитой(${cost}) `;
+            }
           }
         }
         turns1.forEach(turn1 => {
@@ -69,6 +83,7 @@
 
           let rating = base;
           let description = `${piece1.side} ${piece1.type} (${piece1.position.x} ${piece1.position.y}) => (${turn1.x} ${turn1.y}): `;
+          description += baseDesc;
 
           let targetAttacksAlly = false;
 
@@ -85,8 +100,16 @@
           piece1.getCell().set("piece", false);
           cellToMove.set("piece", savedThis);
 
+
           let isUnderAttack = cellToMove.isUnderAttack({noCache: true, side: piece1.enemy});
-          let isUnderProtection = cellToMove.isUnderAttack({noCache: true, side: piece1.side});
+          let isUnderProtection = cellToMove.isUnderAttack({noCache: true, side: piece1.side, withOutPiece: savedThis});
+          // console.log(isUnderProtection, cellToMove, piece1);
+
+          if (savedThis.type === "pawn") {
+            let cost = 0.1;
+            rating += cost;
+            description += `пешка(${cost}) `;
+          }
 
           if (isUnderAttack) {
             let cost = -piece1._cost;
@@ -104,8 +127,6 @@
                   return elem._cost;
                 }
               }, Infinity);
-              // console.log(cost);
-              // console.log(allyCost);
               if (cost > allyCost) {
                 rating += cost;
                 description += `будет под защитой(${cost}) `;
@@ -300,7 +321,7 @@
       })[0];
 
       let isUnderAttack = king.getCell().isUnderAttack({side: king.enemy});
-      console.log(isUnderAttack);
+      // console.log(isUnderAttack);
 
       // console.log(isUnderAttack);
 
@@ -308,7 +329,7 @@
         king.unCheck();
         return false;
       }
-      debugger;
+      // debugger;
 
       king.checkHandler();
     }
