@@ -122,6 +122,7 @@
     }
   }
 
+
   window.renderByPoints = renderByPoints;
   window.highlightCell = highlightCell;
   window.highlightKeyboardPointer = highlightKeyboardPointer;

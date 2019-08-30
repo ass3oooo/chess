@@ -16,11 +16,6 @@
     107: "cancel"
   };
 
-  // toHorse.style.display = "none";
-  // toRook.style.display = "none";
-  // toElephant.style.display = "none";
-  // toQueen.style.display = "none";
-
   function clickEvent(evt) {
     let clickPosition = {
       x: Math.floor(evt.layerX / game.board._cellwidth),

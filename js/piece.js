@@ -172,26 +172,20 @@
 
     isPossibleMove(position) {
 
-      // debugger;
-
       let turns = [];
 
       if (this._requiredTurns) {
-        // console.log("turns are from required");
         console.log(this._requiredTurns);
         turns = this._requiredTurns;
       } else if (!this._cachedPossibleTurns) {
         this._cachedPossibleTurns = this.getPossibleTurns();
         turns = this._cachedPossibleTurns.slice();
-        // console.log("turns are from second if");
       } else {
         turns = this._cachedPossibleTurns;
-        // console.log("turns are from cache");
       }
 
       let isPossible = false;
       for (let i = 0; i < turns.length; i++) {
-        // console.log("isPossibleMove: ", turns[i].x === position.x && turns[i].y === position.y);
         if (turns[i].x === position.x && turns[i].y === position.y) {
               isPossible = true;
               if (turns[i].enPassant) {
@@ -207,8 +201,6 @@
               break;
             }
       }
-
-      // console.log(this, turns);
 
       if (!isPossible) {
         console.log("=============", turns);
@@ -312,12 +304,10 @@
       //enPassantMove
       if (isExist(this.position.y, left) && map[this.position.y][left].piece._firstMove === 1
           && map[forward]) {
-            // console.log(this, this.position);
         turns.push({y: forward, x: left, enPassant: true});
       }
       if (isExist(this.position.y, right) && map[this.position.y][right].piece._firstMove === 1
           && map[forward]) {
-            // console.log(this, this.position);
         turns.push({y: forward, x: right, enPassant: true});
       }
 
@@ -334,12 +324,6 @@
       if (useCache) {
         this._cachedPossibleTurns = turns;
       }
-
-      // if (isExist(this.position.y, right) && map[this.position.y][right].piece._firstMove === 1
-      //     && map[forward]) {
-      //       // console.log(this, this.position);
-      //   console.log(turns);
-      // }
 
       return turns;
 
@@ -408,10 +392,10 @@
       let turns = [];
 
       let obstacles = {
-        leftTop: false, //left top
-        leftBottom: false, //left bottom
-        rightTop: false, //right top
-        rightBottom: false  //right bottom
+        leftTop: false,
+        leftBottom: false,
+        rightTop: false,
+        rightBottom: false
       }
       let x = this.position.x;
       let y = this.position.y;
@@ -816,10 +800,10 @@
       let turns = [];
 
       let obstacles = {
-        leftTop: false, //left top
-        leftBottom: false, //left bottom
-        rightTop: false, //right top
-        rightBottom: false,  //right bottom
+        leftTop: false,
+        leftBottom: false,
+        rightTop: false,
+        rightBottom: false,
         left: false,
         top: false,
         right: false,
@@ -1080,11 +1064,7 @@
           piece.getCell().set("piece", savedAlly);
         })
       });
-
-
-      // console.log(kingPossibleTurns);
-      // console.log(variants);
-      // console.log(!(variants.length > 1));
+      
       if (!(variants.length > 1)) {
         this.board.game.state.paused = true;
         this.board.game.state.requiredAction = function() {

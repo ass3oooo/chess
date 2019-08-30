@@ -1,6 +1,7 @@
 "use strict";
 
 (function() {
+  
   if (!window.colors) window.colors = {};
 
   window.colors.mapBlackCell = "#000000";

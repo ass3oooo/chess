@@ -18,7 +18,6 @@ class BoardCell {
   }
 
   isUnderAttack(options = false) {
-    // console.log("options in isUnderAttack", options);
     // options = {
     //   only: ["pawn", "horse"...],
     //   withOut: ["king", "queen"...],
@@ -34,9 +33,6 @@ class BoardCell {
       if (options.side && options.side !== piece.side) {
         return false;
       }
-      // if (piece.enemy !== this.board.game.state._turn) {
-      //   return false;
-      // }
       if (options.withOutPiece && piece === options.withOutPiece) {
         return false;
       }
@@ -49,43 +45,25 @@ class BoardCell {
       return true;
     }, noCache);
 
-    // if (options.side) {
-    //   console.log(options.side, pieces);
-    // }
-
-
     pieces.forEach(piece => {
       this.set("piece", {side: piece.enemy, type: "pawn", _firstMove: false}); //Виртуальная пешка, для всех враг
-      // piece.getPossibleTurns(false);
-      // console.log(this.position.x, this.position.y, this.piece);
+
       if (piece._cachedPossibleTurns && !piece._cachedPossibleTurns.length > 0){
-        // debugger;
         piece.getPossibleTurns();
       }
-      // try {
-      // console.log(piece);
-        // piece._cachedPossibleTurns.forEach(turn => {
-        // console.log(piece);
-        piece.getPossibleTurns(false).forEach(turn => {
-          // console.log(this, turn);
-          if (this.position.x === turn.x && this.position.y === turn.y) {
-            result.push(piece);
-          }
-          if (turn.enPassant) {
-            if (piece.position.y === this.position.y
-              && (piece.position.x - 1 === this.position.x || piece.position.x + 1 === this.position.x)) {
-                result.push(piece);
-              }
+
+      piece.getPossibleTurns(false).forEach(turn => {
+        if (this.position.x === turn.x && this.position.y === turn.y) {
+          result.push(piece);
+        }
+        if (turn.enPassant) {
+          if (piece.position.y === this.position.y
+            && (piece.position.x - 1 === this.position.x || piece.position.x + 1 === this.position.x)) {
+              result.push(piece);
             }
-          });
-      // } catch (e) {
-      //   return false;
-      // }
+          }
+        });
     });
-
-    // console.log("isUnderAttack", this, this.board.map[0][4].piece);
-
-    // console.log("result", result);
 
     this.set("piece", savePiece);
 

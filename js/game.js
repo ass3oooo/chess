@@ -7,6 +7,7 @@
   window.WHITE = WHITE;
 
   class AI { //на скорую руку, лишь бы работало
+
     constructor(game, side) {
       this.game = game;
       game.ai = this;
@@ -15,12 +16,13 @@
     }
 
     makeTurn() {
-      let bestVariant = this.rateTurns();
-      // console.log(bestVariant);
       let map = this.game.board.map;
+
+      let bestVariant = this.rateTurns();
       let cellToMove = map[bestVariant.turn.y][bestVariant.turn.x];
       let position = bestVariant.turn;
       let piece = bestVariant.piece;
+
       piece.getPossibleTurns();
 
       this.from = {
@@ -55,8 +57,6 @@
         if (nowIsUnderAttack) {
           base = piece1._cost;
           baseDesc += `находится под ударом(${base} к любому ходу) `;
-          // console.log(`${piece1.side} ${piece1.type} (${piece1.position.x} ${piece1.position.y}) стоя на месте, подвергается атаке со стороны `, nowIsUnderAttack);
-          // console.log(piece1);
           let isUnderProtection = piece1.getCell().isUnderAttack({noCache: true, side: piece1.side, withOutPiece: piece1});
           if (isUnderProtection) {
             let cost = nowIsUnderAttack.reduce((acc, elem) => {
@@ -103,7 +103,6 @@
 
           let isUnderAttack = cellToMove.isUnderAttack({noCache: true, side: piece1.enemy});
           let isUnderProtection = cellToMove.isUnderAttack({noCache: true, side: piece1.side, withOutPiece: savedThis});
-          // console.log(isUnderProtection, cellToMove, piece1);
 
           if (savedThis.type === "pawn") {
             let cost = 0.1;
@@ -154,27 +153,20 @@
           }
 
           let nextTurns = cellToMove.piece.getPossibleTurns(false);
-          // console.log(cellToMove, cellToMove.piece, cellToMove.piece.getPossibleTurns());
-          // console.log("nextTurns", nextTurns, cellToMove, cellToMove.piece);
-          // debugger;
           let nextTargets = nextTurns.filter(turn => {
             let nextTarget = map[turn.y][turn.x].piece;
-            // console.log(nextTarget);
             if (nextTarget && nextTarget.side === piece1.enemy) {
               return true;
             } else {
               return false;
             }
           });
-          // console.log("nextTargets: ", nextTargets);
 
           if (nextTargets.length > 0 && nextTargets[0] !== undefined) {
-            // console.log(nextTargets);
             nextTargets.forEach(nextTarget => {
               if (nextTarget && nextTarget.position) {
                 let piece = map[nextTarget.position.y][nextTarget.position.x].piece;
                 let cost = nextTarget._cost;
-                // console.log("nextTarget", nextTarget);
                 rating += cost;
                 description += `сможет атаковать врага(${cost})(${nextTarget.side} ${nextTarget.type} (${nextTarget.position.x} ${nextTarget.position.y})) `;
               }
@@ -197,7 +189,6 @@
       let bestDescription;
 
       mainReport.forEach(variant => {
-        // console.log(variant);
         if (variant.rating > bestRating) {
           bestRating = variant.rating;
           bestPiece = variant.piece1;
@@ -263,7 +254,6 @@
         this.board.renderAll();
       }
 
-      // console.log("switchTurn continues...");
 
       this.state._turn = this.state._turn === WHITE ? BLACK : WHITE;
       //enPassantHandler следит за пешками, уязвимыми для "Взятия на проходе"
@@ -287,9 +277,6 @@
         rook.moveTo(position); //Ладья перемещается и передает ход друшому игроку
       }
 
-      //Тестовая фнукция
-      this.switchTurn.test();
-
       //Сбросим закешированный список фигур для поиска, т.к. какая-то могла быть уничтожена
       this.board.findPiece.reset();
       //Сбрасываем активную фигуру, убираем подсветку с клеток перед передачей хода
@@ -299,6 +286,7 @@
       this.setPointerToKing();
       //Вызов функции, управляющей шахом
       this.checkHandler();
+      //бот делает ход, его ход подсвечивается
       if (this.state.getTurn() === this.ai.side) {
         this.ai.makeTurn();
         if (this.ai.from && this.ai.to) {
@@ -321,15 +309,11 @@
       })[0];
 
       let isUnderAttack = king.getCell().isUnderAttack({side: king.enemy});
-      // console.log(isUnderAttack);
-
-      // console.log(isUnderAttack);
 
       if (!isUnderAttack) {
         king.unCheck();
         return false;
       }
-      // debugger;
 
       king.checkHandler();
     }
@@ -360,8 +344,6 @@
         "12": function() { //пред. клик на нашу фигуру, этот клик на вражескую => сделать ход, удалить вражескую фигуру
 
           if (this.prevCell.piece.isPossibleMove(position)) {
-
-
             this.prevCell.piece.moveTo(currentCell.piece.position);
           } else {
             console.log("impossible move");
